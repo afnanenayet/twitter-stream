@@ -9,3 +9,4 @@ egg-mode = { version = "0.13.0", features = ["hyper-rustls"], default-features =
 structopt = "0.3.3"
 anyhow = "1.0.17"
 thiserror = "1.0.3"
+tokio = "0.1.22"
