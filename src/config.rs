@@ -1,9 +1,12 @@
+use std::path::PathBuf;
+use structopt::StructOpt;
+use thiserror::Error;
+
 /// This module defines the structs that handle the configuration of the app as well as routines
 /// for verifying the config.
 ///
 /// This uses the type-state pattern to allow for methods to only take explicitly verified
 /// configuration structs.
-use thiserror::Error;
 
 /// The maximum allowed size, in bytes, of a twitter keyword
 const KEYWORD_MAX_LEN: usize = 60;
@@ -77,4 +80,12 @@ pub struct TwitterConfig {
 
     /// The API token
     pub secret: String,
+}
+
+/// Data relating to the command line interface
+#[derive(Debug, StructOpt)]
+pub struct CliOpts {
+    /// The path to the configuration file for the Twitter API
+    #[structopt(parse(from_os_str))]
+    config_file: PathBuf,
 }
