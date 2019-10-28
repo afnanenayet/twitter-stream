@@ -4,26 +4,25 @@ mod server;
 
 use canteen::utils;
 use canteen::*;
-use lazy_static::lazy_static;
-use std::{str::FromStr, thread};
+use serde_yaml;
+use std::{fs::File, io::BufReader, thread};
+use structopt::StructOpt;
 
 fn main() -> Result<(), anyhow::Error> {
+    // First, get the config from a YAML file
+    let opts = config::CliOpts::from_args();
+    let file = File::open(opts.config_file)?;
+    let reader = BufReader::new(file);
+    let config: config::TwitterConfig = serde_yaml::from_reader(reader)?;
+
     let mut http_server = Canteen::new();
     http_server.bind(("127.0.0.1", 8080));
 
     // set the default route handler to show a 404 message
     http_server.set_default(utils::err_404);
 
-    let cfg = config::TwitterConfig {
-        keywords: vec!["help", "me"]
-            .into_iter()
-            .map(|x| String::from_str(x).unwrap())
-            .collect(),
-        ..config::TwitterConfig::default()
-    };
-
     let cfg_wrapper = config::Config {
-        config: Box::new(cfg),
+        config: Box::new(config),
     }
     .verify()
     .expect("The provided configuration values were invalid");
