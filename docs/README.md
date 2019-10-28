@@ -15,16 +15,16 @@ consumer_secret: "secret string"
 
 # don't have to change this
 keywords:
-  - "twitter",
-  - "facebook",
-  - "google",
-  - "travel",
-  - "art",
-  - "music",
-  - "photography",
-  - "love",
-  - "fashion",
-  - "food",
+  - "twitter"
+  - "facebook"
+  - "google"
+  - "travel"
+  - "art"
+  - "music"
+  - "photography"
+  - "love"
+  - "fashion"
+  - "food"
 ```
 
 ## General Architecture
