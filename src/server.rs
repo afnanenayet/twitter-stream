@@ -87,21 +87,20 @@ impl Server {
             .start(&token);
 
         // Process each tweet as they come in
-        block_on_all(stream.for_each(|m| {
+        tokio::run(stream.map_err(|_| ()).for_each(|m| {
             if let StreamMessage::Tweet(tweet) = m {
-                tokio::spawn({
-                    let score = analyze(&tweet.text);
+                let score = analyze(&tweet.text);
 
-                    // Add the timestamp to the score
-                    let datapoint = ScoreTimestamp {
-                        score,
-                        timestamp: std::time::SystemTime::now(),
-                    };
-                    self.scores.push(datapoint);
-                });
+                // Add the timestamp to the score
+                let datapoint = ScoreTimestamp {
+                    score,
+                    timestamp: std::time::SystemTime::now(),
+                };
+                //self.scores.push(datapoint);
+                println!("score: {:#?}", score);
             };
             futures::future::ok(())
-        }))?;
+        }));
         Ok(())
     }
 }
