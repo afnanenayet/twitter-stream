@@ -18,10 +18,14 @@ properly (likely because it was using nightly `async` functions and hasn't been
 updated in the last few months, so things ended up breaking and never got
 updated). I settled on using the
 [egg-mode](https://github.com/QuietMisdreavus/twitter-rs) crate, which does
-build properly.
+build properly and allows you to link against rustls so we don't have to worry
+about linking errors with OpenSSL (which I have dealt with in the past).
 
 I use the `structopt` crate to handle parsing command line arguments and
 automatically generate nice help messages, it's one of my favorite crates.
+
+I elected to use `tokio` as the runtime for my app. It's a pretty well known
+crate and is mature for a Rust library.
 
 ## Summary
 
