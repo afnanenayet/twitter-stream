@@ -86,7 +86,10 @@ impl Server {
             .track(cfg.keywords.clone().into_iter())
             .start(&token);
 
-        // Process each tweet as they come in
+        // This processes each tweet asynchronously and combines a future which means that the two
+        // phases of processing the tweet (receiving it from the stream and generating a sentiment
+        // score) are both Futures, which Tokio can schedule efficiently, so additional tweets can
+        // be received while an older tweet is being processed, for example.
         tokio::run(stream.map_err(|_| ()).for_each(|m| {
             if let StreamMessage::Tweet(tweet) = m {
                 let score = analyze(&tweet.text);
@@ -97,7 +100,7 @@ impl Server {
                     timestamp: std::time::SystemTime::now(),
                 };
                 //self.scores.push(datapoint);
-                println!("score: {:#?}", score);
+                println!("score: {:#?}", datapoint);
             };
             futures::future::ok(())
         }));
