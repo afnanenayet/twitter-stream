@@ -1,4 +1,31 @@
-# Token Coding Challenge
+# Twitter Streaming
+
+## Usage
+
+`cargo run --release -- config.yaml`
+
+This application expects a YAML file that contains the following fields:
+
+```yaml
+# change these fields to whatever your Twitter secrets are
+access_token: "secret string"
+access_token_secret: "secret string"
+consumer_key: "secret string"
+consumer_secret: "secret string"
+
+# don't have to change this
+keywords:
+  - "twitter",
+  - "facebook",
+  - "google",
+  - "travel",
+  - "art",
+  - "music",
+  - "photography",
+  - "love",
+  - "fashion",
+  - "food",
+```
 
 ## General Architecture
 
