@@ -7,7 +7,7 @@ use crate::sentiment::{analyze, SentimentScore};
 /// server is going to dispatch, as well as things like maintaining the server state and
 /// implementing graceful shutdown routines.
 use anyhow::Result;
-use egg_mode::stream::{filter, StreamMessage};
+use egg_mode::stream::{filter, StreamMessage, TwitterStream};
 use futures::Stream;
 use std::time::SystemTime;
 use tokio::runtime::current_thread::block_on_all;
@@ -75,6 +75,13 @@ impl Server {
         };
 
         // Direct the stream to filter for keywords
+        // TODO
+        let _streams: Vec<TwitterStream> = cfg
+            .keywords
+            .clone()
+            .into_iter()
+            .map(|keyword| filter().track(vec![keyword]).start(&token))
+            .collect();
         let stream = filter()
             .track(cfg.keywords.clone().into_iter())
             .start(&token);
@@ -82,14 +89,16 @@ impl Server {
         // Process each tweet as they come in
         block_on_all(stream.for_each(|m| {
             if let StreamMessage::Tweet(tweet) = m {
-                let score = analyze(&tweet.text);
+                tokio::spawn({
+                    let score = analyze(&tweet.text);
 
-                // Add the timestamp to the score
-                let datapoint = ScoreTimestamp {
-                    score,
-                    timestamp: std::time::SystemTime::now(),
-                };
-                self.scores.push(datapoint);
+                    // Add the timestamp to the score
+                    let datapoint = ScoreTimestamp {
+                        score,
+                        timestamp: std::time::SystemTime::now(),
+                    };
+                    self.scores.push(datapoint);
+                });
             };
             futures::future::ok(())
         }))?;
