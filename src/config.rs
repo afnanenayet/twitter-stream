@@ -14,6 +14,11 @@ const KEYWORD_MAX_LEN: usize = 60;
 /// The minimum allowed size, in bytes, of a twitter keyword
 const KEYWORD_MIN_LEN: usize = 1;
 
+const CONSUMER_API_KEY: &'static str = "Aw6ine4jxRWH6jsVQ1EWkcsqa";
+const CONSUMER_SECRET_KEY: &'static str = "nRusLxGsVcdmio50RiEEqmxhORsztjRJt5ACMHkTQItUGodOpI";
+const ACCESS_TOKEN: &'static str = "3070573521-aOEmeEsbcpWdcJGX7Yq1Dcl0LRcuoPd1pqqj8SM";
+const ACCESS_TOKEN_SECRET: &'static str = "1iZI5H7lfdINWlfIBKp7THhnDNl1CVk3q5hMuKOWZCVAF";
+
 /// Error types that can arise from verifying a config
 #[derive(Error, Debug)]
 pub enum ConfigError {
@@ -25,10 +30,13 @@ pub enum ConfigError {
 }
 
 /// An unverified config
+#[derive(Clone, Debug)]
 pub struct Config {
     pub config: Box<TwitterConfig>,
 }
 
+/// A verified config
+#[derive(Clone, Debug)]
 pub struct VerifiedConfig {
     config: Box<TwitterConfig>,
 }
@@ -39,7 +47,7 @@ impl Config {
     /// This method will verify the Twitter configuration and promote it to a `VerifiedConfig` if
     /// all of the fields are valid. It will check each keyword and ensure that they are between 1
     /// and 60 bytes (inclusive), and that the keys for API authentication are valid.
-    pub fn verify(self) -> Result<VerifiedConfig, ConfigError> {
+    pub fn verify(mut self) -> Result<VerifiedConfig, ConfigError> {
         // The Twitter spec states that each keyword must be between 1 and 60 bytes (inclusive),
         // which we verify by mapping over each keyword and filtering for bad keywords. We also
         // clone the strings because it allows the error to list which keywords were invalid while
@@ -49,13 +57,20 @@ impl Config {
             .keywords
             .iter()
             .map(String::clone)
-            .filter(|keyword| keyword.len() < KEYWORD_MIN_LEN && keyword.len() > KEYWORD_MAX_LEN)
+            .filter(|keyword| keyword.len() < KEYWORD_MIN_LEN || keyword.len() > KEYWORD_MAX_LEN)
             .collect();
         if !invalid_keywords.is_empty() {
             return Err(ConfigError::InvalidKeywords {
                 keywords: invalid_keywords,
             });
         }
+
+        // TODO move this to the env, add error checking
+        self.config.access_token = ACCESS_TOKEN.to_owned();
+        self.config.access_token_secret = ACCESS_TOKEN_SECRET.to_owned();
+        self.config.consumer_key = CONSUMER_API_KEY.to_owned();
+        self.config.consumer_secret = CONSUMER_SECRET_KEY.to_owned();
+
         Ok(VerifiedConfig {
             config: self.config,
         })
@@ -74,12 +89,22 @@ impl VerifiedConfig {
 /// The Twitter API configuration.
 ///
 /// This includes the necessary data for queries and authentication.
+#[derive(Clone, Debug, Default)]
 pub struct TwitterConfig {
     /// The keywords to track
     pub keywords: Vec<String>,
 
     /// The API token
-    pub secret: String,
+    pub access_token: String,
+
+    /// The API token secret
+    pub access_token_secret: String,
+
+    /// The consumer API key
+    pub consumer_key: String,
+
+    /// The consumer API secret
+    pub consumer_secret: String,
 }
 
 /// Data relating to the command line interface
