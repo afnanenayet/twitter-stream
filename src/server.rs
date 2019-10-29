@@ -65,9 +65,6 @@ impl Future for ScoreProcessor {
     ///
     /// This method will poll the underlying stream to see if a tweet is ready to be analyzed. If
     /// it is, then the future will process the tweet and generate a sentiment analysis score.
-    // Allowing unreachable code disables the warning that the Rust compiler throws at the bottom
-    // of the loop, which is intentional.
-    #[allow(unreachable_code)]
     fn poll(&mut self) -> Result<Async<Self::Item>, Self::Error> {
         loop {
             // We can't use the `try_ready` macro because it assumes that the Item and Error associated
@@ -82,14 +79,10 @@ impl Future for ScoreProcessor {
             // consumption
             if let Some(StreamMessage::Tweet(tweet)) = value {
                 let score = analyze(&tweet.text);
-
-                // Add the timestamp to the score
-                let datapoint = ScoreTimestamp {
-                    score,
-                    timestamp: std::time::SystemTime::now(),
-                };
-                self.scores.push(datapoint);
-                println!("{}: {:?}", self.topic, score);
+                println!(
+                    "{}: +{:.2}/-{:.2}",
+                    self.topic, score.positive, score.negative
+                );
             };
         }
         // This gives a hint to the compiler that this code is unreacable. Futures are supposed to
