@@ -52,6 +52,16 @@ I wasn't able to figure out a clean way to hold a reference to the data that
 was being ingested by the tweet streaming logic in the method that handles the
 GET request.
 
+### Tokio
+
+The meat of this project is the way we use Tokio. I implement a future that
+processes a stream and converts each item into a sentiment analysis score and
+prints that to STDOUT, so you have a live view of scores as they come in. I
+implement a separate stream per keyword so we can evaluate each keyword
+concurrently as they come in. I was considering setting up a separate
+future/stream to print scores to STDOUT, but I don't think it'll take longer to
+print than it does to generate a sentiment score for a tweet. 
+
 ### Dependencies
 
 At first I wanted to use the rust-twitter-streaming crate, but it doesn't build

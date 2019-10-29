@@ -1,7 +1,12 @@
 use crate::config::VerifiedConfig;
 use crate::sentiment::{analyze, SentimentScore};
-use futures::future::{lazy, Future};
-use futures::Async;
+use futures::{
+    future::{lazy, Future},
+    sink::Sink,
+    Async,
+};
+use std::io::{self, Write};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 /// The module representing the server
 ///
@@ -37,22 +42,26 @@ type ScoreSeries = Vec<ScoreTimestamp>;
 /// This is a helper future that collects sentiment scores
 struct ScoreProcessor {
     /// The scores for a particular stream
-    pub scores: ScoreSeries,
+    scores: ScoreSeries,
 
     /// The topic that this particular stream processor corresponds to
-    pub topic: String,
+    topic: String,
 
     /// The Twitter stream that's being consumed (or any stream that serves the proper struct)
-    pub stream: TwitterStream,
+    stream: TwitterStream,
+
+    /// The MPSC sender so tasks can write processed scores to the queue
+    tx: UnboundedSender<String>,
 }
 
 impl ScoreProcessor {
     /// Create a new score processor with a given stream and topic
-    fn new(topic: String, stream: TwitterStream) -> Self {
+    fn new(topic: String, stream: TwitterStream, tx: UnboundedSender<String>) -> Self {
         Self {
             scores: Vec::new(),
             topic,
             stream,
+            tx,
         }
     }
 }
@@ -79,10 +88,11 @@ impl Future for ScoreProcessor {
             // consumption
             if let Some(StreamMessage::Tweet(tweet)) = value {
                 let score = analyze(&tweet.text);
-                println!(
+                let display_score = format!(
                     "{}: +{:.2}/-{:.2}",
                     self.topic, score.positive, score.negative
                 );
+                self.tx.try_send(display_score).unwrap();
             };
         }
         // This gives a hint to the compiler that this code is unreacable. Futures are supposed to
@@ -126,7 +136,7 @@ impl Server {
             consumer: con_token,
             access: access_token,
         };
-
+        let (tx, rx) = unbounded_channel();
         // Create a stream for each keyword so we can track sentiment scores for each stream
         let streams: Vec<ScoreProcessor> = cfg
             .keywords
@@ -134,7 +144,7 @@ impl Server {
             .iter()
             .map(|keyword| {
                 let stream = filter().track(vec![keyword]).start(&token);
-                ScoreProcessor::new(keyword.clone(), stream)
+                ScoreProcessor::new(keyword.clone(), stream, tx.clone())
             })
             .collect();
 
@@ -143,8 +153,15 @@ impl Server {
             for stream in streams {
                 tokio::spawn(lazy(move || stream));
             }
-            Ok(())
+
+            // We print to STDOUT here to avoid lock conention
+            rx.for_each(|value| {
+                println!("{}", value);
+                Ok(())
+            })
+            .map_err(|_| ())
         }));
+
         Ok(())
     }
 }
