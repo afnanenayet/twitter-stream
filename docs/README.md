@@ -1,4 +1,11 @@
-# Twitter Streaming
+# Twitter Sentiment Analysis Streaming
+
+[![asciicast](https://asciinema.org/a/tdQxYy8oGGLQVZjh0pfnYn2Yu.svg)](https://asciinema.org/a/tdQxYy8oGGLQVZjh0pfnYn2Yu)
+
+## Summary
+
+Stream tweets for given keywords in realtime and generate sentiment analysis
+scores for different topics, in realtime.
 
 ## Usage
 
