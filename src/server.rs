@@ -1,5 +1,7 @@
 use crate::config::VerifiedConfig;
 use crate::sentiment::{analyze, SentimentScore};
+use futures::future::{lazy, Future};
+use futures::Async;
 
 /// The module representing the server
 ///
@@ -10,10 +12,6 @@ use anyhow::Result;
 use egg_mode::stream::{filter, StreamMessage, TwitterStream};
 use futures::Stream;
 use std::time::SystemTime;
-use tokio::runtime::current_thread::block_on_all;
-
-// TODO move the score/statistics stuff to its own module
-// TODO move the access token stuff to the env
 
 /// A sentiment score paired with a timestamp
 ///
@@ -34,6 +32,74 @@ struct ScoreTimestamp {
 /// these scores should be pushed to the vector in order.
 type ScoreSeries = Vec<ScoreTimestamp>;
 
+/// A future that gets the sentiment score for a tweet
+///
+/// This is a helper future that collects sentiment scores
+struct ScoreProcessor {
+    /// The scores for a particular stream
+    pub scores: ScoreSeries,
+
+    /// The topic that this particular stream processor corresponds to
+    pub topic: String,
+
+    /// The Twitter stream that's being consumed (or any stream that serves the proper struct)
+    pub stream: TwitterStream,
+}
+
+impl ScoreProcessor {
+    /// Create a new score processor with a given stream and topic
+    fn new(topic: String, stream: TwitterStream) -> Self {
+        Self {
+            scores: Vec::new(),
+            topic,
+            stream,
+        }
+    }
+}
+
+impl Future for ScoreProcessor {
+    type Item = ();
+    type Error = ();
+
+    /// Generate a sentiment analysis score for a tweet, if it's ready
+    ///
+    /// This method will poll the underlying stream to see if a tweet is ready to be analyzed. If
+    /// it is, then the future will process the tweet and generate a sentiment analysis score.
+    // Allowing unreachable code disables the warning that the Rust compiler throws at the bottom
+    // of the loop, which is intentional.
+    #[allow(unreachable_code)]
+    fn poll(&mut self) -> Result<Async<Self::Item>, Self::Error> {
+        loop {
+            // We can't use the `try_ready` macro because it assumes that the Item and Error associated
+            // types are identical for the stream that's consumed and the current future
+            let value = match self.stream.poll() {
+                Ok(Async::Ready(value)) => value,
+                Ok(Async::NotReady) => return Ok(Async::NotReady),
+                Err(_) => return Err(()), // equivalent to `.map_err(|_| ())`
+            };
+
+            // We silently ignore things from the stream that aren't tweets that are ready for
+            // consumption
+            if let Some(StreamMessage::Tweet(tweet)) = value {
+                let score = analyze(&tweet.text);
+
+                // Add the timestamp to the score
+                let datapoint = ScoreTimestamp {
+                    score,
+                    timestamp: std::time::SystemTime::now(),
+                };
+                self.scores.push(datapoint);
+                println!("{}: {:?}", self.topic, score);
+            };
+        }
+        // This gives a hint to the compiler that this code is unreacable. Futures are supposed to
+        // run to completion, but this one does not. Admittedly I'm abusing Futures a bit, but this
+        // is the easiest way to take advantage of Tokio's runtime and process code at the same
+        // time. This flag allows LLVM to heavily optimize the above loop.
+        unreachable!();
+    }
+}
+
 /// A struct representing the state of the server
 ///
 /// This contains the sentiment scores that have been collected for each topic
@@ -41,9 +107,6 @@ type ScoreSeries = Vec<ScoreTimestamp>;
 /// Note: this struct contains a reference to the strings of the topics. The configuration struct
 /// should outlive the `Server` struct, the keys for the score map hold a reference to.
 pub struct Server {
-    /// The processed datapoints for sentiment analysis
-    scores: ScoreSeries,
-
     /// A valid config for the Twitter API
     config: VerifiedConfig,
 }
@@ -51,10 +114,7 @@ pub struct Server {
 impl Server {
     /// Construct a new server and initialize its state variables
     pub fn new(config: VerifiedConfig) -> Self {
-        Self {
-            scores: Vec::new(),
-            config,
-        }
+        Self { config }
     }
 
     /// Start the webserver and stream data from the Twitter API.
@@ -74,35 +134,23 @@ impl Server {
             access: access_token,
         };
 
-        // Direct the stream to filter for keywords
-        // TODO
-        let _streams: Vec<TwitterStream> = cfg
+        // Create a stream for each keyword so we can track sentiment scores for each stream
+        let streams: Vec<ScoreProcessor> = cfg
             .keywords
             .clone()
-            .into_iter()
-            .map(|keyword| filter().track(vec![keyword]).start(&token))
+            .iter()
+            .map(|keyword| {
+                let stream = filter().track(vec![keyword]).start(&token);
+                ScoreProcessor::new(keyword.clone(), stream)
+            })
             .collect();
-        let stream = filter()
-            .track(cfg.keywords.clone().into_iter())
-            .start(&token);
 
-        // This processes each tweet asynchronously and combines a future which means that the two
-        // phases of processing the tweet (receiving it from the stream and generating a sentiment
-        // score) are both Futures, which Tokio can schedule efficiently, so additional tweets can
-        // be received while an older tweet is being processed, for example.
-        tokio::run(stream.map_err(|_| ()).for_each(|m| {
-            if let StreamMessage::Tweet(tweet) = m {
-                let score = analyze(&tweet.text);
-
-                // Add the timestamp to the score
-                let datapoint = ScoreTimestamp {
-                    score,
-                    timestamp: std::time::SystemTime::now(),
-                };
-                //self.scores.push(datapoint);
-                println!("score: {:#?}", datapoint);
-            };
-            futures::future::ok(())
+        // Spawn a stream/future for each keyword concurrently
+        tokio::run(lazy(|| {
+            for stream in streams {
+                tokio::spawn(lazy(move || stream));
+            }
+            Ok(())
         }));
         Ok(())
     }
