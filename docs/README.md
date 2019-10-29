@@ -58,9 +58,13 @@ The meat of this project is the way we use Tokio. I implement a future that
 processes a stream and converts each item into a sentiment analysis score and
 prints that to STDOUT, so you have a live view of scores as they come in. I
 implement a separate stream per keyword so we can evaluate each keyword
-concurrently as they come in. I was considering setting up a separate
-future/stream to print scores to STDOUT, but I don't think it'll take longer to
-print than it does to generate a sentiment score for a tweet. 
+concurrently as they come in.
+
+I also set up a separate task to handle printing values to STDOUT. I was
+worried that having different futures attempt to write to the console right
+after getting a sentiment score might introduce some lock contention, so I set
+up an MPSC queue for a separate task to ingest so that we could print to STDOUT
+without having to worry about locking STDOUT.
 
 ### Dependencies
 
@@ -75,4 +79,4 @@ about linking errors with OpenSSL (which I have dealt with in the past).
 I use the `structopt` crate to handle parsing command line arguments and
 automatically generate nice help messages, it's one of my favorite crates.
 
-I'm using tokio as the execution context for my app. 
+I'm using tokio as the execution context for my app.
