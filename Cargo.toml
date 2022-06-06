@@ -9,7 +9,7 @@ egg-mode = { version = "0.13.0", features = ["hyper-rustls"], default-features =
 structopt = "0.3.3"
 anyhow = "1.0.17"
 thiserror = "1.0.3"
-tokio = "0.1.22"
+tokio = "1.8.4"
 sentiment = "0.1.1"
 serde_yaml = "0.8.11"
 toml = "0.5.3"
